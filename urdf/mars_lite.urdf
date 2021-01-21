@@ -1,0 +1,74 @@
+<robot name="cartographer_mars_lite">
+    <material name="orange">
+        <color rgba="1.0 0.5 0.2 1" />
+    </material>
+    <material name="gray">
+        <color rgba="0.2 0.2 0.2 1" />
+    </material>
+
+    <!-- IMU Link -->
+    <link name="imu_link">
+        <visual>
+            <origin xyz="0 0 0" />
+            <geometry>
+                <box size="0.06 0.04 0.02" />
+            </geometry>
+            <material name="orange" />
+        </visual>
+    </link>
+
+    <link name="front_laser_frame">
+        <visual>
+            <origin xyz="0 0 0" />
+            <geometry>
+                <cylinder length="0.05" radius="0.03" />
+            </geometry>
+            <material name="gray" />
+        </visual>
+    </link>
+
+    <link name="back_laser_frame">
+        <visual>
+            <origin xyz="0 0 0" />
+            <geometry>
+                <cylinder length="0.05" radius="0.03" />
+            </geometry>
+            <material name="gray" />
+        </visual>
+    </link>
+
+    <link name="base_footprint"></link>
+
+    <joint name="base_footprint_joint" type="fixed">
+        <origin xyz="0 0 0.1016" rpy="0 0 0" />
+        <parent link="base_footprint"/>
+        <child link="base_link" />
+    </joint>
+
+    <!-- Base Link -->
+    <link name="base_link">
+    </link>
+
+    <!-- IMU Link -->
+    <!-- <link name="imu_link">
+  </link> -->
+
+    <joint name="imu_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="imu_link" />
+        <origin xyz="0 0 0" rpy="0 0 -1.57079632679" />
+    </joint>
+
+    <joint name="front_laser_frame_joint" type="fixed">
+        <parent link="base_footprint" />
+        <child link="front_laser_frame" />
+        <origin xyz="0.25 0.0 0.15" rpy="3.1415926535897931 0 0"/>
+    </joint>
+
+    <joint name="back_laser_frame_joint" type="fixed">
+        <parent link="base_footprint" />
+        <child link="back_laser_frame" />
+        <origin xyz="-0.25 0.0 0.15" rpy="3.1415926535897931 0 3.1415926535897931"/>
+    </joint>
+
+</robot>
