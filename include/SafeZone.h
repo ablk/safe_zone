@@ -21,6 +21,7 @@ class SafeZone{
 	double mat_size_;
 	double origin_;
 	cv::Mat zone_mat_;
+	cv::Mat prev_zone_mat_;
 	double stop_zone_pixel_dist_;
 	double slow_zone_pixel_dist_;
 	double robot_pixel_height_;
@@ -35,6 +36,7 @@ class SafeZone{
 	
 	SafeZone(){
 		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		prev_zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
 		mat_resolution_ = 0.05;
 		robot_width_ = 1;
 		robot_height_ = 2;
@@ -79,6 +81,7 @@ class SafeZone{
 		std::string frame_id){
 		
 		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		prev_zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
 		mat_resolution_ = mat_resolution;
 		robot_width_ = robot_width;
 		robot_height_ = robot_height;
@@ -91,7 +94,7 @@ class SafeZone{
 		
 		robot_pixel_width_ = 0.5*robot_width_/mat_resolution_;
 		robot_pixel_height_ = 0.5*robot_height_/mat_resolution_;
-		origin_ = trajectory_predict_time_*max_speed_/mat_resolution_ + robot_pixel_height_;
+		origin_ = trajectory_predict_time_*max_speed_/mat_resolution_ + std::max(robot_pixel_height_,robot_pixel_width_);
 		mat_size_ = origin_*2;
 		stop_zone_pixel_dist_ = stop_zone_dist_/mat_resolution_;
 		slow_zone_pixel_dist_ = stop_zone_pixel_dist_ + slow_zone_dist_/mat_resolution_;
@@ -140,7 +143,8 @@ class SafeZone{
 	
 	void ComputeZone(double linear_velocity,double angular_velocity){
 		const std::lock_guard<std::mutex> lock(mutex_);
-		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		prev_zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		cv::swap(zone_mat_, prev_zone_mat_);
 		double sgn_v = linear_velocity<0? -1:1;
 		
 		double radius = 0;
@@ -153,8 +157,8 @@ class SafeZone{
 			cv::line(zone_mat_, cv::Point(origin_ - sgn_v*robot_pixel_height_,origin_), cv::Point(origin_ + sgn_v*robot_pixel_height_ + linear_velocity*trajectory_predict_time_/mat_resolution_,origin_), cv::Scalar(100), (stop_zone_pixel_dist_ + robot_pixel_width_)*2);	
 		}
 		else if(radius<1/mat_resolution_){
-			cv::circle(zone_mat_,cv::Point(origin_,origin_), slow_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(50) , -1,cv::LINE_4,0);
-			cv::circle(zone_mat_,cv::Point(origin_,origin_), stop_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(100) , -1,cv::LINE_4,0);				
+			cv::circle(zone_mat_,cv::Point(origin_,origin_), slow_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(50) , -1,cv::LINE_8,0);
+			cv::circle(zone_mat_,cv::Point(origin_,origin_), stop_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(100) , -1,cv::LINE_8,0);				
 		}
 		else{
 			cv::Point center;
@@ -179,7 +183,7 @@ class SafeZone{
 				start_angle+slow_zone_gain_*sgn_v*angular_velocity*trajectory_predict_time_*180.0/M_PI + sgn_a*robot_pixel_height_/radius*180.0/M_PI,
 				cv::Scalar(50),
 				(slow_zone_pixel_dist_+robot_pixel_width_)*2,
-				cv::LINE_4,
+				cv::LINE_8,
 				0
 			);
 			
@@ -192,7 +196,7 @@ class SafeZone{
 				start_angle+sgn_v*angular_velocity*trajectory_predict_time_*180.0/M_PI + sgn_a*robot_pixel_height_/radius*180.0/M_PI,
 				cv::Scalar(100),
 				(stop_zone_pixel_dist_+robot_pixel_width_)*2,
-				cv::LINE_4,
+				cv::LINE_8,
 				0
 			);
 		}	
@@ -200,8 +204,7 @@ class SafeZone{
 	
 	nav_msgs::OccupancyGrid GridMsg(){
 		const std::lock_guard<std::mutex> lock(mutex_);
-		cv::Mat tmp = zone_mat_.reshape(0, 1);
-		tmp.copyTo(grid_map_.data);
+		prev_zone_mat_.reshape(0, 1).copyTo(grid_map_.data);
 		return grid_map_;
 	}
 };

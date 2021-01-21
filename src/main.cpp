@@ -33,9 +33,7 @@ void publish_grid(const ros::TimerEvent& event)
 }
 
 int main(int argc, char** argv)
-{
-	
-	
+{	
 	ros::init(argc, argv, "sz");
 	
 	ros::NodeHandle nh;
@@ -71,6 +69,8 @@ int main(int argc, char** argv)
 		1.5,//double slow_zone_gain,
 		base_frame//std::string frame_id
 	);
+	
+	//TODO:: Opencv draw function have problem when width>height
 	
 	
 	ros::Timer timer = nh.createTimer(ros::Duration(0.1), publish_grid);
