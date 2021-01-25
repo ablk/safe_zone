@@ -7,6 +7,9 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+
+
+
 class SafeZone{
 	private:
 	double mat_resolution_; //meter
@@ -153,12 +156,60 @@ class SafeZone{
 		}
 		
 		if(radius > mat_size_ || radius ==0){
+		
 			cv::line(zone_mat_, cv::Point(origin_ - sgn_v*robot_pixel_height_ ,origin_), cv::Point(origin_ + sgn_v*robot_pixel_height_ + slow_zone_gain_*linear_velocity*trajectory_predict_time_/mat_resolution_,origin_), cv::Scalar(50), (slow_zone_pixel_dist_ + robot_pixel_width_)*2);
 			cv::line(zone_mat_, cv::Point(origin_ - sgn_v*robot_pixel_height_,origin_), cv::Point(origin_ + sgn_v*robot_pixel_height_ + linear_velocity*trajectory_predict_time_/mat_resolution_,origin_), cv::Scalar(100), (stop_zone_pixel_dist_ + robot_pixel_width_)*2);	
+
+			std::vector<cv::Point> slow_points;
+			slow_points.push_back(cv::Point(origin_ + sgn_v*(robot_pixel_height_ + slow_zone_pixel_dist_) + slow_zone_gain_*linear_velocity*trajectory_predict_time_/mat_resolution_,origin_-(slow_zone_pixel_dist_ + robot_pixel_width_)));						
+			slow_points.push_back(cv::Point(origin_ + sgn_v*(robot_pixel_height_ + slow_zone_pixel_dist_) + slow_zone_gain_*linear_velocity*trajectory_predict_time_/mat_resolution_,origin_+(slow_zone_pixel_dist_ + robot_pixel_width_)));	
+			slow_points.push_back(cv::Point(origin_ - sgn_v*(robot_pixel_height_ + slow_zone_pixel_dist_) ,origin_+(slow_zone_pixel_dist_ + robot_pixel_width_)));
+			slow_points.push_back(cv::Point(origin_ - sgn_v*(robot_pixel_height_ + slow_zone_pixel_dist_) ,origin_-(slow_zone_pixel_dist_ + robot_pixel_width_)));
+			
+			std::vector<cv::Point> stop_points;
+			stop_points.push_back(cv::Point(origin_ + sgn_v*(robot_pixel_height_ + stop_zone_pixel_dist_) + linear_velocity*trajectory_predict_time_/mat_resolution_,origin_-(stop_zone_pixel_dist_ + robot_pixel_width_)));						
+			stop_points.push_back(cv::Point(origin_ + sgn_v*(robot_pixel_height_ + stop_zone_pixel_dist_) + linear_velocity*trajectory_predict_time_/mat_resolution_,origin_+(stop_zone_pixel_dist_ + robot_pixel_width_)));	
+			stop_points.push_back(cv::Point(origin_ - sgn_v*(robot_pixel_height_ + stop_zone_pixel_dist_) ,origin_+(stop_zone_pixel_dist_ + robot_pixel_width_)));
+			stop_points.push_back(cv::Point(origin_ - sgn_v*(robot_pixel_height_ + stop_zone_pixel_dist_) ,origin_-(stop_zone_pixel_dist_ + robot_pixel_width_)));			
+			
+			
+			/*
+			fillConvexPoly (zone_mat_,
+				stop_points,
+				cv::Scalar(100),
+				cv::LINE_8,
+				0 
+			);
+			fillConvexPoly (zone_mat_,
+				slow_points,
+				cv::Scalar(50),
+				cv::LINE_8,
+				0 
+			);*/
+			
+			
+			cv::polylines( zone_mat_,
+				slow_points,
+				true,
+				cv::Scalar(125),
+				1,
+				cv::LINE_8,
+				0 
+			);
+
+
+			cv::polylines( zone_mat_,
+				stop_points,
+				true,
+				cv::Scalar(125),
+				1,
+				cv::LINE_8,
+				0 
+			);
 		}
 		else if(radius<1/mat_resolution_){
-			cv::circle(zone_mat_,cv::Point(origin_,origin_), slow_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(50) , -1,cv::LINE_8,0);
-			cv::circle(zone_mat_,cv::Point(origin_,origin_), stop_zone_pixel_dist_+std::max(robot_pixel_height_,robot_pixel_width_), cv::Scalar(100) , -1,cv::LINE_8,0);				
+			cv::circle(zone_mat_,cv::Point(origin_,origin_), slow_zone_pixel_dist_+sqrt(robot_pixel_height_*robot_pixel_height_+robot_pixel_width_*robot_pixel_width_), cv::Scalar(50) , -1,cv::LINE_8,0);
+			cv::circle(zone_mat_,cv::Point(origin_,origin_), stop_zone_pixel_dist_+sqrt(robot_pixel_height_*robot_pixel_height_+robot_pixel_width_*robot_pixel_width_), cv::Scalar(100) , -1,cv::LINE_8,0);				
 		}
 		else{
 			cv::Point center;
@@ -174,6 +225,7 @@ class SafeZone{
 				start_angle = 270;
 				sgn_a = sgn_v;
 			}
+			
 			
 			cv::ellipse(zone_mat_,
 				center,
@@ -199,7 +251,117 @@ class SafeZone{
 				cv::LINE_8,
 				0
 			);
-		}	
+			
+			std::vector <cv::Point> pts_slow;
+			double slow_start_angle = start_angle - sgn_a*(robot_pixel_height_+slow_zone_pixel_dist_) /radius*180.0/M_PI;
+			double slow_end_angle = start_angle+slow_zone_gain_*sgn_v*angular_velocity*trajectory_predict_time_*180.0/M_PI + sgn_a*(robot_pixel_height_+slow_zone_pixel_dist_) /radius*180.0/M_PI;
+
+			cv::ellipse2Poly(
+				center,
+				cv::Size(radius+slow_zone_pixel_dist_+robot_pixel_width_,radius+slow_zone_pixel_dist_+robot_pixel_width_),
+				0,
+				slow_start_angle,
+				slow_end_angle,
+				5,
+				pts_slow
+			);
+			
+			if(radius-slow_zone_pixel_dist_-robot_pixel_width_>0){
+				cv::Point pt1,pt2;
+				double r = radius-slow_zone_pixel_dist_-robot_pixel_width_;
+				double angle1,angle2;
+				angle1 = slow_start_angle*M_PI/180.0,
+				angle2 = slow_end_angle*M_PI/180.0,
+				pt1 = center + cv::Point(r*cos(angle1),r*sin(angle1));
+				pt2 = center + cv::Point(r*cos(angle2),r*sin(angle2));
+				//zone_mat_.at<uint8_t>(pt1)=125;
+				//zone_mat_.at<uint8_t>(pt2)=125;	
+				if(sgn_a<0){
+					pts_slow.push_back(pt1);
+					pts_slow.push_back(pt2);
+				}
+				else{
+					pts_slow.push_back(pt2);
+					pts_slow.push_back(pt1);
+				}
+			}
+			else{
+				pts_slow.push_back(center);
+			}
+
+			
+			std::vector <cv::Point> pts_stop;
+			double stop_start_angle = start_angle - sgn_a*(robot_pixel_height_+stop_zone_pixel_dist_) /radius*180.0/M_PI;
+			double stop_end_angle = start_angle+sgn_v*angular_velocity*trajectory_predict_time_*180.0/M_PI + sgn_a*(robot_pixel_height_+stop_zone_pixel_dist_) /radius*180.0/M_PI;
+	
+			cv::ellipse2Poly(
+				center,
+				cv::Size(radius+stop_zone_pixel_dist_+robot_pixel_width_,radius+stop_zone_pixel_dist_+robot_pixel_width_),
+				0,
+				stop_start_angle,
+				stop_end_angle,
+				5,
+				pts_stop
+			);
+
+			if(radius-stop_zone_pixel_dist_-robot_pixel_width_>0){
+				cv::Point pt1,pt2;
+				double r = radius-stop_zone_pixel_dist_-robot_pixel_width_;
+				double angle1,angle2;
+				angle1 = stop_start_angle*M_PI/180.0,
+				angle2 = stop_end_angle*M_PI/180.0,
+				pt1 = center + cv::Point(r*cos(angle1),r*sin(angle1));
+				pt2 = center + cv::Point(r*cos(angle2),r*sin(angle2));
+				//zone_mat_.at<uint8_t>(pt1)=125;
+				//zone_mat_.at<uint8_t>(pt2)=125;
+				if(sgn_a<0){
+					pts_stop.push_back(pt1);
+					pts_stop.push_back(pt2);
+				}
+				else{
+					pts_stop.push_back(pt2);
+					pts_stop.push_back(pt1);
+				}
+			}
+			else{
+				pts_stop.push_back(center);
+			}
+			
+
+			/*
+			fillConvexPoly (zone_mat_,
+				pts_slow,
+				cv::Scalar(50),
+				cv::LINE_8,
+				0 
+			);
+			fillConvexPoly (zone_mat_,
+				pts_stop,
+				cv::Scalar(100),
+				cv::LINE_8,
+				0 
+			);*/
+			
+			
+			cv::polylines( zone_mat_,
+				pts_slow,
+				true,
+				cv::Scalar(125),
+				1,
+				cv::LINE_8,
+				0 
+			);
+			cv::polylines( zone_mat_,
+				pts_stop,
+				true,
+				cv::Scalar(125),
+				1,
+				cv::LINE_8,
+				0 
+			);
+
+			
+		}
 	}
 	
 	nav_msgs::OccupancyGrid GridMsg(){

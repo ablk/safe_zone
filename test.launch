@@ -12,7 +12,9 @@
     type="robot_state_publisher" />
 
     <node pkg="rosbag" type="play" name="player" 
-        args="--clock -r 1 -s 0 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-47-26.bag"/>
+        args="--clock -r 1 -s 30 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-47-26.bag"/>
+
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="screen" args="-d $(find safe_zone)/test.rviz" />
 
     <!--amars_lite_bag_2020-08-20-13-47-26.bag-->
     <!--amars_lite_bag_2020-08-20-13-52-24.bag    -s 260 to map3 -->
