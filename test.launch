@@ -1,9 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-
-
-    <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen"/>
+   <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen" launch-prefix="valgrind --leak-check=yes"/>
 
   <param name="robot_description"
     textfile="$(find safe_zone)/urdf/mars_lite.urdf" />
@@ -12,7 +10,7 @@
     type="robot_state_publisher" />
 
     <node pkg="rosbag" type="play" name="player" 
-        args="--clock -r 1 -s 30 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-47-26.bag"/>
+        args="--clock -r 1 -s 0 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-47-26.bag"/>
 
     <node name="rvizvisualisation" pkg="rviz" type="rviz" output="screen" args="-d $(find safe_zone)/test.rviz" />
 

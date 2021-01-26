@@ -23,11 +23,11 @@ void OdomCallback(const nav_msgs::Odometry& odom_msg)
 	
 	//std::cout<<"odom:"<<linear_velocity<<","<<angular_velocity<<"\n";
 	
-	std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();	
+	//std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();	
 	safe_zone.ComputeZone(linear_velocity,angular_velocity);
 
-	std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-	std::cout << "odom:"<<std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()<< "\n";			
+	//std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+	//std::cout << "odom:"<<std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()<< "\n";			
 }
 
 void publish_grid(const ros::TimerEvent& event)
@@ -64,8 +64,8 @@ int main(int argc, char** argv)
 	safe_zone.SetParam(
 		0.05,//double mat_resolution,
 		0.10,//double angle_resolution,
-		2,//double robot_width,
-		1,//double robot_height,
+		1,//double robot_width,
+		2,//double robot_height,
 		3,//double trajectory_predict_time,
 		2,//double max_speed,
 		0.25,//double stop_zone_dist,
