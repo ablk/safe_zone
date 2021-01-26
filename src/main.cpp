@@ -21,7 +21,7 @@ void OdomCallback(const nav_msgs::Odometry& odom_msg)
 	double linear_velocity = odom_msg.twist.twist.linear.x;
 	double angular_velocity = odom_msg.twist.twist.angular.z;
 	
-	std::cout<<"odom:"<<linear_velocity<<","<<angular_velocity<<"\n";
+	//std::cout<<"odom:"<<linear_velocity<<","<<angular_velocity<<"\n";
 	
 	std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();	
 	safe_zone.ComputeZone(linear_velocity,angular_velocity);
@@ -63,6 +63,7 @@ int main(int argc, char** argv)
 	
 	safe_zone.SetParam(
 		0.05,//double mat_resolution,
+		0.10,//double angle_resolution,
 		2,//double robot_width,
 		1,//double robot_height,
 		3,//double trajectory_predict_time,
