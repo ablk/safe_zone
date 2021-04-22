@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <launch>
 
-   <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen" launch-prefix="valgrind --leak-check=yes"/>
+    <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen">
 
-  <param name="robot_description"
-    textfile="$(find safe_zone)/urdf/mars_lite.urdf" />
+        <rosparam command = "load" file="$(find safe_zone)/launch/config.yaml"/>
+    </node>
 
-  <node name="robot_state_publisher" pkg="robot_state_publisher"
-    type="robot_state_publisher" />
+    <param name="robot_description" textfile="$(find safe_zone)/urdf/mars_lite.urdf" />
+
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
 
     <node pkg="rosbag" type="play" name="player" 
         args="--clock -r 1 -s 0 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-47-26.bag"/>

@@ -2,13 +2,18 @@
 #define _SAFEZONE_H_ 
 
 #include <nav_msgs/OccupancyGrid.h>
+#include <geometry_msgs/Twist.h>
 #include <cmath>
 #include <mutex>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 
-
+enum class SAFE_STATE{
+	NORMAL,
+	SLOW,
+	STOP
+};
 
 class SafeZone{
 	private:
@@ -26,6 +31,7 @@ class SafeZone{
 	int mat_size_;
 	int origin_;
 	cv::Mat zone_mat_;
+	cv::Mat output_zone_mat_;
 	int stop_zone_pixel_dist_;
 	int slow_zone_pixel_dist_;
 	int robot_pixel_height_;
@@ -34,12 +40,21 @@ class SafeZone{
 	
 	
 	nav_msgs::OccupancyGrid grid_map_;
+	bool reset_grid_;
+
+	SAFE_STATE state_;
+	bool reset_state_;
+	geometry_msgs::Twist last_,odom_;
+	double desired_linear_velocity_,desired_angular_velocity_;
+	double max_acc_x_,max_acc_w_;
+	double velocity_publish_duration_;
 	
 	
-	public:	
+	public:
 	
 	SafeZone(){
 		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		output_zone_mat_ = zone_mat_.clone();
 		mat_resolution_ = 0.05;
 		angle_resolution_ = 10.0 * M_PI/180.0;
 		robot_width_ = 1;
@@ -69,7 +84,17 @@ class SafeZone{
 		grid_map_.info.height = mat_size_;
 		grid_map_.info.origin.position.x=-origin_*mat_resolution_;
 		grid_map_.info.origin.position.y=-origin_*mat_resolution_;
+
+		state_ = SAFE_STATE::NORMAL;
+		reset_grid_ = true;
+		reset_state_ = true;
 		
+		
+		desired_linear_velocity_ = 0;
+		desired_angular_velocity_ = 0;
+		max_acc_x_ = 1;
+		max_acc_w_ = 3;
+		velocity_publish_duration_ = 1.0/30.0;
 	}
 	
 	void SetParam(
@@ -82,9 +107,16 @@ class SafeZone{
 		double stop_zone_dist,
 		double slow_zone_dist,
 		double slow_zone_gain,
-		std::string frame_id){
+		std::string frame_id,
+		double desired_linear_velocity,
+		double desired_angular_velocity,
+		double	max_acc_x,
+		double max_acc_w,
+		double velocity_publish_duration
+		){
 		
 		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+		output_zone_mat_ = zone_mat_.clone();
 		mat_resolution_ = mat_resolution;
 		angle_resolution_ = angle_resolution;
 		robot_width_ = robot_width;
@@ -115,16 +147,43 @@ class SafeZone{
 		grid_map_.info.height = mat_size_;
 		grid_map_.info.origin.position.x=-origin_*mat_resolution_;
 		grid_map_.info.origin.position.y=-origin_*mat_resolution_;
+		state_ = SAFE_STATE::NORMAL;
+		reset_grid_ = true;
+		reset_state_ = true;
+		
+		desired_linear_velocity_ = desired_linear_velocity;
+		desired_angular_velocity_ = desired_angular_velocity;
+		max_acc_x_ = max_acc_x;
+		max_acc_w_ = max_acc_w;
+		velocity_publish_duration_ = velocity_publish_duration;		
 	}
 	
+	
+	SAFE_STATE GetState(){
+		return state_;
+	}
 	
 	void DrawCloud(cv::Mat cloud){
 		const std::lock_guard<std::mutex> lock(mutex_);
 		//std::cout<<cloud.rows<<","<<cloud.cols<<"\n";
+
+		if(reset_state_){
+			state_ = SAFE_STATE::NORMAL;
+			reset_state_ = false;		
+		}
 		for(int i=0;i<cloud.cols;i++){
 			float x = cloud.at<float>(0,i);
 			float y = cloud.at<float>(1,i);
-			Draw(x,y);
+			if(GetValue(x,y)==100){
+				state_ = SAFE_STATE::STOP;
+				Draw(x,y);			
+			}
+			if(GetValue(x,y)==50){
+				Draw(x,y);
+				if(state_ == SAFE_STATE::NORMAL){
+					state_ = SAFE_STATE::SLOW;			
+				}		
+			}
 		}
 		
 	}
@@ -133,7 +192,7 @@ class SafeZone{
 		int u = x/mat_resolution_+origin_;
 		int v = y/mat_resolution_+origin_;
 		if(u<0||u>=mat_size_||v<0||v>=mat_size_)return;
-		zone_mat_.at<uint8_t>(v,u)=125;
+		output_zone_mat_.at<uint8_t>(v,u)=125;
 	}
 	
 	
@@ -142,12 +201,17 @@ class SafeZone{
 		//x,y: base_footprint coordinate
 		int u = x/mat_resolution_+origin_;
 		int v = y/mat_resolution_+origin_;
+		if(u<0||u>=mat_size_||v<0||v>=mat_size_)return 0;
 		return zone_mat_.at<uint8_t>(v,u);
 	}
 	
 	void ComputeZone(double linear_velocity,double angular_velocity){
 		const std::lock_guard<std::mutex> lock(mutex_);
+		odom_.linear.x = linear_velocity;
+		odom_.angular.z = angular_velocity;
+		
 		zone_mat_ = cv::Mat::zeros(mat_size_, mat_size_, CV_8UC1);
+
 		double sgn_v = linear_velocity<0? -1:1;
 		
 		double radius = 0;
@@ -274,13 +338,76 @@ class SafeZone{
 
 			}
 		}
+		if(reset_grid_){
+
+			output_zone_mat_ = zone_mat_.clone();
+			reset_grid_ = false;
+		}
 	}
 	
 	nav_msgs::OccupancyGrid GridMsg(){
 		const std::lock_guard<std::mutex> lock(mutex_);
-		zone_mat_.reshape(0, 1).copyTo(grid_map_.data);
+		output_zone_mat_.reshape(0, 1).copyTo(grid_map_.data);
+		reset_grid_ = true;
 		return grid_map_;
 	}
+
+	geometry_msgs::Twist TwistMsg(){
+		const std::lock_guard<std::mutex> lock(mutex_);
+		if(state_ == SAFE_STATE::SLOW){
+			if(odom_.linear.x>desired_linear_velocity_){
+				last_.linear.x = std::max(last_.linear.x,odom_.linear.x);
+				last_.linear.x = std::max(desired_linear_velocity_,last_.linear.x - max_acc_x_ * velocity_publish_duration_);
+			}
+			else if(odom_.linear.x<-desired_linear_velocity_){
+				last_.linear.x = std::min(last_.linear.x,odom_.linear.x);
+				last_.linear.x = std::min(-desired_linear_velocity_,last_.linear.x + max_acc_x_ * velocity_publish_duration_);
+			}
+			else{
+				last_.linear.x = odom_.linear.x;
+				//Handle if state = slow but odom is ok
+			}
+			
+			
+			if(odom_.angular.z>desired_angular_velocity_){
+				last_.angular.z = std::max(last_.angular.z,odom_.angular.z);
+				last_.angular.z = std::max(desired_angular_velocity_,last_.angular.z - max_acc_w_ * velocity_publish_duration_);
+			}
+			else if(odom_.angular.z<-desired_angular_velocity_){
+				last_.angular.z = std::min(last_.angular.z,odom_.angular.z);
+				last_.angular.z = std::min(-desired_angular_velocity_,last_.angular.z + max_acc_w_ * velocity_publish_duration_);
+			}
+			else{
+				last_.angular.z = odom_.angular.z;
+			}
+		}
+		if(state_ == SAFE_STATE::STOP){
+			last_.linear.x = 0;
+			last_.angular.z = 0;
+		}
+		if(state_==SAFE_STATE::NORMAL){
+			last_.linear.x = odom_.linear.x;
+			last_.angular.z = odom_.angular.z;
+		}		
+		
+		/*
+		if(state_ == SAFE_STATE::SLOW){
+			std::cout<<"SLOW";
+			}
+		if(state_ == SAFE_STATE::STOP){
+			std::cout<<"!!!!!STOP!!!!!";
+		}
+		if(state_ == SAFE_STATE::NORMAL){
+			std::cout<<"NORMAL";
+		}
+		std::cout<<"("<<odom_.linear.x<<","<<odom_.angular.z<<")("<<last_.linear.x<<","<<last_.angular.z<<")\n";
+		*/
+		
+		reset_state_ = true;
+		return last_;
+	}
+	
+
 };
 
 #endif
