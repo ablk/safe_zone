@@ -1,0 +1,15 @@
+odom_topic: odom_combined
+laser_topic1: front_left_laser/scan
+laser_topic2: rrear_right_laser/scan
+base_frame: base_footprint
+output_grid_topic: safe_zone
+output_velocity_topic: safe_zone_vel
+velocity_publish_duration: 0.03
+grid_publish_duration: 0.1
+mat_resolution: 0.05
+min_rotate_angle: 0.1
+robot_width: 1.0
+robot_height: 1.2
+trajectory_predict_time: 1
+max_speed: 1.0
+stop_zone_front_dist: 1.0

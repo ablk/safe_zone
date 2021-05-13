@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen">
+
+        <rosparam command = "load" file="$(find safe_zone)/launch/config_bag.yaml"/>
+    </node>
+
+    <param name="robot_description" textfile="$(find safe_zone)/urdf/mars_lite.urdf" />
+
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+    <node pkg="rosbag" type="play" name="player" 
+        args="--clock -r 3 -s 0 $(env HOME)/Documents/people_tracking/2020TAIROS/amars_lite_bag_2020-08-20-13-52-24.bag"/>
+
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="screen" args="-d $(find safe_zone)/test.rviz" />
+
+</launch>

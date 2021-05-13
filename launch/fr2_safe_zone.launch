@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node name="safe_zone" pkg="safe_zone" type="safe_zone" output="screen">
+
+        <rosparam command = "load" file="$(find safe_zone)/launch/fr2_config.yaml"/>
+    </node>
+</launch>

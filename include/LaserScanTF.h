@@ -59,28 +59,30 @@ class LaserScanTF{
 	}
 	
 	
-	
-	
-	
-	cv::Mat Laser2Cloud(const sensor_msgs::LaserScan& laser_msg){
-		
-		cv::Mat cloud = cv::Mat::zeros(3,laser_msg.ranges.size(),CV_32FC1);
+	std::vector<cv::Point2f> Laser2Cloud(const sensor_msgs::LaserScan& laser_msg){
+		//Laser topic to 2D points on base_frame
+		std::vector<cv::Point2f> cloud;
 		
 		for(int i=0;i<laser_msg.ranges.size();i++){
+			if(isnan(laser_msg.ranges[i]))continue;
 			double r = laser_msg.ranges[i];
 			if(range_min_>r || range_max_<r)continue;
 			double angle = angle_min_+angle_increment_*i;
-			cloud.at<float>(0,i)=r*cos(angle);
-			cloud.at<float>(1,i)=r*sin(angle);
+			float x = r*cos(angle);
+			float y = r*sin(angle);
+			cv::Point2f pt;
+			pt.x = tf_rotation_.at<float>(0,0)*x + tf_rotation_.at<float>(0,1)*y + tf_translation_.at<float>(0,0);
+			pt.y = tf_rotation_.at<float>(1,0)*x + tf_rotation_.at<float>(1,1)*y + tf_translation_.at<float>(1,0);
+			cloud.push_back(pt);
 		}
-		
-		cloud = tf_rotation_*cloud + cv::repeat(tf_translation_,1,laser_msg.ranges.size());
 		return cloud;
 	}	
 	
 	void LaserScanCallback(const sensor_msgs::LaserScan& laser_msg){
 		if(!is_init_){
 			try{
+				
+				//grab tf from robot(base_frame) to laser
 				tf::StampedTransform transform;
 				listener.lookupTransform(base_frame_, laser_msg.header.frame_id, 
 				ros::Time(0), transform);
@@ -100,14 +102,10 @@ class LaserScanTF{
 			}
 		}
 		
-		//std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();	
-		
-		cv::Mat cloud = Laser2Cloud(laser_msg);
-		safe_zone_->DrawCloud(cloud);
-		//std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-		//std::cout << "laser:"<<std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count()<< "\n";				
+		// sent cloud to safe_zone for safety detection
+		safe_zone_->ProcessCloud(Laser2Cloud(laser_msg));
 		
 	}
 };
-
+	
 #endif
